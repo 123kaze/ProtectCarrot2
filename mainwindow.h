@@ -2,10 +2,11 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QTimer>
 #include <QPainter>
-#include <vector>
+#include <QTimer>
 #include <memory>
+#include <vector>
+
 #include "entities/enemies/enemy.h"
 
 QT_BEGIN_NAMESPACE
@@ -25,8 +26,8 @@ class MainWindow : public QMainWindow
 
    private:
     Ui::MainWindow* ui;
-    QTimer *gameTimer;
+    QTimer* gameTimer;
     std::vector<std::unique_ptr<Enemy>> monsters;
-    void paintEvent(QPaintEvent *event) override; // 重写绘图事件
+    void paintEvent(QPaintEvent* event) override;  // 重写绘图事件
 };
 #endif  // MAINWINDOW_H

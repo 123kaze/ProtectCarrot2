@@ -73,7 +73,8 @@ void ResourceManager::loadResources(const QString& path)
         QFileInfo fi(filePath);
 
         const QString ext = fi.suffix().toLower();
-        if (ext != "png" && ext != "jpg" && ext != "jpeg" && ext != "bmp" && ext != "gif" && ext != "webp")
+        if (ext != "png" && ext != "jpg" && ext != "jpeg" && ext != "bmp" && ext != "gif" &&
+            ext != "webp")
         {
             continue;
         }

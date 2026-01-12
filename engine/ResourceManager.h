@@ -8,14 +8,14 @@
 
 class ResourceManager
 {
-public:
+   public:
     static ResourceManager& instance();
 
     void loadResources(const QString& path);
 
     const QPixmap& getPixmap(const QString& name);
 
-private:
+   private:
     ResourceManager();
 
     ResourceManager(const ResourceManager&) = delete;
