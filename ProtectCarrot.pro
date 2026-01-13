@@ -10,6 +10,15 @@ CONFIG += c++20
 
 SOURCES += \
     engine/ResourceManager.cpp \
+    entities/bullets/bullet.cpp \
+    entities/enemies/enemy.cpp \
+    entities/obstacle.cpp \
+    entities/towers/tower.cpp \
+    entities/towers/targeting_strategy.cpp \
+    entities/towers/towerpit.cpp \
+    game/game_controller.cpp \
+    game/game_world.cpp \
+    game/wave_spawner.cpp \
     main.cpp \
     mainwindow.cpp
 
@@ -20,9 +29,10 @@ INCLUDEPATH += \
     entities/towers \
     entities \
     entities/enemies \
-    entiities/bullets \
+    entities/bullets \
+    game \
     ui \
-    ui/weights \
+    ui/widgets \
 
 HEADERS += \
     core/gameobject.h \
@@ -30,6 +40,16 @@ HEADERS += \
     engine/resourcemanager.h \
     entities/enemies/emermybase.h \
     entities/enemies/enemy.h \
+    entities/bullets/bullet.h \
+    entities/obstacle.h \
+    entities/radish.h \
+    entities/towers/tower.h \
+    entities/towers/targeting_strategy.h \
+    entities/types.h \
+    game/game_controller.h \
+    game/game_state.h \
+    game/game_world.h \
+    game/wave_spawner.h \
     mainwindow.h
 
 FORMS += \

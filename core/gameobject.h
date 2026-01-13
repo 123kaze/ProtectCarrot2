@@ -18,13 +18,20 @@ public:
     // 绘制自己
     virtual void draw(QPainter *painter) {
         const QPixmap& pix = ResourceManager::instance().getPixmap(spriteName);
-        // 居中绘制
-        painter->drawPixmap(pos.x() - pix.width()/2, pos.y() - pix.height()/2, pix);
+        const int w = renderWidth;
+        const int targetHeight = pix.isNull() ? 0 : (w * pix.height() / pix.width());
+
+        QRect targetRect(static_cast<int>(pos.x() - w / 2),
+                         static_cast<int>(pos.y() - targetHeight / 2),
+                         w,
+                         targetHeight);
+        painter->drawPixmap(targetRect, pix);
     }
 
 protected:
     QPointF pos;         // 坐标
     QString spriteName;  // 对应的图片名
+    int renderWidth = 60;
 };
 
 #endif

@@ -1,43 +1,64 @@
-#include "../../core/gameobject.h"
+#ifndef ENEMY_H
+#define ENEMY_H
+
 #include <QList>
 #include <QPointF>
-#include <cmath>
+#include <QString>
+#include <cstdint>
 
-class Enemy : public GameObject {
+#include "../types.h"
+
+class Enemy
+{
 public:
-    Enemy(QList<QPointF> path) : GameObject(path[0], "monster1"), waypoints(path) {
-        currentPointIdx = 0;
-        speed = 2.0; 
-    }
+    Enemy(int id, EnemyType type, const QList<QPointF>& path);
 
-    void update() override {
-        if (currentPointIdx >= waypoints.size()) return;
+    int id() const { return id_; }
+    EnemyType type() const { return type_; }
 
-        QPointF target = waypoints[currentPointIdx];
-        
-        // 1. 计算移动向量
-        qreal dx = target.x() - pos.x();
-        qreal dy = target.y() - pos.y();
-        qreal distance = std::sqrt(dx * dx + dy * dy);
+    void update(std::int64_t deltaMs);
 
-        if (distance < speed) {
-            // 2. 到达当前拐点，转向下一个点
-            pos = target;
-            currentPointIdx++;
-        } else {
-            // 3. 利用单位向量保证匀速移动
-            pos.setX(pos.x() + speed * (dx / distance));
-            pos.setY(pos.y() + speed * (dy / distance));
-        }
-        
-        // 4. 动画切换逻辑
-        static int frameCounter = 0;
-        frameCounter++;
-        spriteName = (frameCounter % 20 < 10) ? "monster1" : "monster1_2";
-    }
+    void takeDamage(int damage);
+    bool isDead() const { return hp_ <= 0; }
+
+    int hp() const { return hp_; }
+
+    QPointF position() const { return pos_; }
+    QPointF renderPosition() const { return QPointF(pos_.x(), pos_.y() + bobbingOffsetY_); }
+    QPointF centerPosition() const { return QPointF(pos_.x() + renderSize_ / 2.0, pos_.y() + renderSize_ / 2.0); }
+    QString spriteName() const { return useAlt_ ? spriteAltName_ : spriteBaseName_; }
+
+    bool isAtEnd() const { return atEnd_; }
+
+    double progress() const { return traveledDistancePx_; }
 
 private:
-    QList<QPointF> waypoints; // 路径点序列
-    int currentPointIdx;      // 当前正在往第几个点走
-    float speed;              // 移动速度
+    void switchSprite();
+
+    int id_ = -1;
+    EnemyType type_ = EnemyType::Monster1;
+
+    QList<QPointF> path_;
+    int pathIndex_ = 0;
+
+    QPointF pos_;
+
+    double speedPxPerSec_ = 240.0;
+    int hp_ = 0;
+
+    QString spriteBaseName_;
+    QString spriteAltName_;
+    bool useAlt_ = false;
+
+    bool atEnd_ = false;
+    double traveledDistancePx_ = 0.0;
+
+    int renderSize_ = 80;
+
+    std::int64_t animAccMs_ = 0;
+
+    double animPhase_ = 0.0;
+    double bobbingOffsetY_ = 0.0;
 };
+
+#endif

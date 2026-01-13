@@ -80,6 +80,8 @@
         <file>res/images/win.png</file>
     </qresource>
     <qresource prefix="/sounds">
+        <file alias="death_moster.mp3">res/sounds/death_moster.mp3</file>
+        <file alias="Win_music.mp3">res/sounds/Win_music.mp3</file>
         <file>res/sounds/background_music.mp3</file>
     </qresource>
 </RCC>
