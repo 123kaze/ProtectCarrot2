@@ -40,23 +40,45 @@ class MainWindow : public QMainWindow
     GameController controller;
 
     QMediaPlayer* bgmPlayer = nullptr;
-    QBuffer* bgmBuffer = nullptr;
+    QBuffer* bgmGameBuffer = nullptr;
+    QBuffer* bgmMenuBuffer = nullptr;
 
     QMediaPlayer* sfxDeathPlayer = nullptr;
     QBuffer* sfxDeathBuffer = nullptr;
 
-    QMediaPlayer* sfxWinPlayer = nullptr;
-    QBuffer* sfxWinBuffer = nullptr;
+    QMediaPlayer* sfxClickPlayer = nullptr;
+    QBuffer* sfxClickBuffer = nullptr;
+
+    QMediaPlayer* sfxCannonPlayer = nullptr;
+    QBuffer* sfxCannonBuffer = nullptr;
+
+    QMediaPlayer* sfxFanPlayer = nullptr;
+    QBuffer* sfxFanBuffer = nullptr;
+
+    QMediaPlayer* sfxPoopPlayer = nullptr;
+    QBuffer* sfxPoopBuffer = nullptr;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QAudioOutput* bgmOutput = nullptr;
 
     QAudioOutput* sfxDeathOutput = nullptr;
-    QAudioOutput* sfxWinOutput = nullptr;
+    QAudioOutput* sfxClickOutput = nullptr;
+    QAudioOutput* sfxCannonOutput = nullptr;
+    QAudioOutput* sfxFanOutput = nullptr;
+    QAudioOutput* sfxPoopOutput = nullptr;
 #endif
+
+    enum class BgmMode
+    {
+        Menu,
+        Game,
+    };
+    BgmMode bgmMode_ = BgmMode::Menu;
 
     QRectF towerUpgradeRect;
     QRectF towerSellRect;
     QRectF confirmRect;
+    QRectF defeatRestartRect;
+    QRectF defeatReturnRect;
 
     void paintEvent(QPaintEvent* event) override;  // 重写绘图事件
     void mousePressEvent(QMouseEvent* event) override;

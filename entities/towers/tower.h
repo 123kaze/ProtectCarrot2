@@ -41,7 +41,7 @@ public:
 
     bool isInRange(const QPointF& target) const;
 
-    void update(std::int64_t deltaMs,
+    bool update(std::int64_t deltaMs,
                 const std::vector<std::unique_ptr<Enemy>>& enemies,
                 Obstacle* selectedObstacle,
                 std::vector<std::unique_ptr<Bullet>>& outBullets);

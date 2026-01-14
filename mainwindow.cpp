@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include "engine/resourcemanager.h"
+#include "engine/ResourceManager.h"
 #include "ui_mainwindow.h"
 
 #include <QMouseEvent>
@@ -103,24 +103,113 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
     // 0. 加载游戏资源
     ResourceManager::instance().loadResources("images");
 
-    bgmPlayer = new QMediaPlayer(this);
-    bgmBuffer = new QBuffer(this);
-    QString bgmPath = QStringLiteral(":/sounds/background_music.mp3");
-    if (loadSoundToBuffer(bgmBuffer, &bgmPath))
+    // AI辅助痕迹：此处参考了 AI 对“启动阶段预加载关键资源 + 缺失即提示”的建议，
+    // 我将缺失资源收集逻辑封装进 ResourceManager，并在 UI 层用 QMessageBox 汇总提示，避免运行中黑屏且便于验收。
+    // 启动时预加载关键贴图并提示缺失项，避免运行中出现黑块/不可见。
     {
-        qWarning() << "BGM loaded from" << bgmPath << "bytes=" << bgmBuffer->data().size();
+        ResourceManager::instance().clearMissingPixmaps();
+        const QStringList essential = {
+            "background",
+            "map21",
+            "win",
+            "lose",
+            "pause_normal",
+            "pause_hover",
+            "double_speed_normal",
+            "double_speed_hover",
+            "cannon",
+            "poop",
+            "star",
+            "fan",
+            "cannon_bullet",
+            "poop_bullet",
+            "star_bullet",
+            "fan_bullet",
+            "monster1",
+            "monster1_2",
+            "monster2",
+            "monster2_2",
+            "monster3",
+            "monster3_2",
+            "monster4",
+            "monster4_2",
+            "monster5",
+            "monster5_2",
+            "monsterboss",
+            "radish_10",
+            "health_10",
+        };
+
+        for (const QString& k : essential)
+        {
+            ResourceManager::instance().getPixmap(k);
+        }
+
+        const QStringList missing = ResourceManager::instance().missingPixmaps();
+        if (!missing.isEmpty())
+        {
+            const int maxShow = 12;
+            QStringList show = missing.mid(0, maxShow);
+            QString msg = QStringLiteral("以下资源加载失败（程序会继续运行，但画面可能缺失）：\n\n%1")
+                              .arg(show.join("\n"));
+            if (missing.size() > maxShow)
+            {
+                msg += QStringLiteral("\n\n... 还有 %1 个未显示")
+                           .arg(missing.size() - maxShow);
+            }
+            QMessageBox::warning(this, QStringLiteral("资源缺失"), msg);
+        }
     }
+
+    bgmPlayer = new QMediaPlayer(this);
+    bgmGameBuffer = new QBuffer(this);
+    bgmMenuBuffer = new QBuffer(this);
+
+    QString bgmGamePath = QStringLiteral(":/sounds/background_music.mp3");
+    if (loadSoundToBuffer(bgmGameBuffer, &bgmGamePath))
+    {
+        qWarning() << "BGM(game) loaded from" << bgmGamePath << "bytes=" << bgmGameBuffer->data().size();
+    }
+
+    QString bgmMenuPath = QStringLiteral(":/sounds/mainmanul.mp3");
+    if (loadSoundToBuffer(bgmMenuBuffer, &bgmMenuPath))
+    {
+        qWarning() << "BGM(menu) loaded from" << bgmMenuPath << "bytes=" << bgmMenuBuffer->data().size();
+    }
+
+    const auto applyBgmMode = [this]() {
+        if (!bgmPlayer)
+        {
+            return;
+        }
+        QBuffer* buf = (bgmMode_ == BgmMode::Game) ? bgmGameBuffer : bgmMenuBuffer;
+        if (!buf || !buf->isOpen())
+        {
+            return;
+        }
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const QUrl url = (bgmMode_ == BgmMode::Game) ? QUrl("qrc:/sounds/background_music.mp3")
+                                                    : QUrl("qrc:/sounds/mainmanul.mp3");
+        bgmPlayer->stop();
+        bgmPlayer->setSourceDevice(buf, url);
+        bgmPlayer->setPosition(0);
+        bgmPlayer->play();
+#else
+        bgmPlayer->stop();
+        bgmPlayer->setMedia(QMediaContent(), buf);
+        bgmPlayer->setPosition(0);
+        bgmPlayer->play();
+#endif
+    };
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     bgmOutput = new QAudioOutput(this);
     bgmOutput->setVolume(0.5);
     bgmPlayer->setAudioOutput(bgmOutput);
 
-    // Qt6: QMediaPlayer may not support qrc:/ URL directly under FFmpeg backend.
+    // QMediaPlayer may not support qrc:/ URL directly under FFmpeg backend.
     // Feed resource data through QIODevice instead.
-    if (bgmBuffer->isOpen())
-    {
-        bgmPlayer->setSourceDevice(bgmBuffer, QUrl("qrc:/sounds/background_music.mp3"));
-    }
+    applyBgmMode();
     connect(bgmPlayer, &QMediaPlayer::errorOccurred, this,
             [this](QMediaPlayer::Error error, const QString& errorString)
             {
@@ -145,11 +234,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
                 }
             });
 #else
-    // Qt5: also prefer QIODevice to avoid qrc:/ URL issues.
-    if (bgmBuffer->isOpen())
-    {
-        bgmPlayer->setMedia(QMediaContent(), bgmBuffer);
-    }
+    // also prefer QIODevice to avoid qrc:/ URL issues.
+    applyBgmMode();
     bgmPlayer->setVolume(40);
     connect(bgmPlayer, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error), this,
             [this](QMediaPlayer::Error error)
@@ -175,9 +261,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
                 }
             });
 #endif
-    bgmPlayer->play();
 
-    // SFX: enemy death
+    // enemy death
     sfxDeathPlayer = new QMediaPlayer(this);
     sfxDeathBuffer = new QBuffer(this);
     QString deathPath = QStringLiteral(":/sounds/death_moster.mp3");
@@ -186,13 +271,38 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
         qWarning() << "SFX death loaded from" << deathPath;
     }
 
-    // SFX: win/click
-    sfxWinPlayer = new QMediaPlayer(this);
-    sfxWinBuffer = new QBuffer(this);
-    QString winPath = QStringLiteral(":/sounds/Win_music.mp3");
-    if (loadSoundToBuffer(sfxWinBuffer, &winPath))
+    // UI click
+    sfxClickPlayer = new QMediaPlayer(this);
+    sfxClickBuffer = new QBuffer(this);
+    QString clickPath = QStringLiteral(":/sounds/click.mp3");
+    if (loadSoundToBuffer(sfxClickBuffer, &clickPath))
     {
-        qWarning() << "SFX win loaded from" << winPath;
+        qWarning() << "SFX click loaded from" << clickPath;
+    }
+
+    // tower attacks
+    sfxCannonPlayer = new QMediaPlayer(this);
+    sfxCannonBuffer = new QBuffer(this);
+    QString cannonPath = QStringLiteral(":/sounds/connon.mp3");
+    if (loadSoundToBuffer(sfxCannonBuffer, &cannonPath))
+    {
+        qWarning() << "SFX cannon loaded from" << cannonPath;
+    }
+
+    sfxFanPlayer = new QMediaPlayer(this);
+    sfxFanBuffer = new QBuffer(this);
+    QString fanPath = QStringLiteral(":/sounds/fan.mp3");
+    if (loadSoundToBuffer(sfxFanBuffer, &fanPath))
+    {
+        qWarning() << "SFX fan loaded from" << fanPath;
+    }
+
+    sfxPoopPlayer = new QMediaPlayer(this);
+    sfxPoopBuffer = new QBuffer(this);
+    QString poopPath = QStringLiteral(":/sounds/poop.mp3");
+    if (loadSoundToBuffer(sfxPoopBuffer, &poopPath))
+    {
+        qWarning() << "SFX poop loaded from" << poopPath;
     }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -204,12 +314,36 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
         sfxDeathPlayer->setSourceDevice(sfxDeathBuffer, QUrl("qrc:/sounds/death_moster.mp3"));
     }
 
-    sfxWinOutput = new QAudioOutput(this);
-    sfxWinOutput->setVolume(0.8);
-    sfxWinPlayer->setAudioOutput(sfxWinOutput);
-    if (sfxWinBuffer->isOpen())
+    sfxClickOutput = new QAudioOutput(this);
+    sfxClickOutput->setVolume(0.8);
+    sfxClickPlayer->setAudioOutput(sfxClickOutput);
+    if (sfxClickBuffer->isOpen())
     {
-        sfxWinPlayer->setSourceDevice(sfxWinBuffer, QUrl("qrc:/sounds/Win_music.mp3"));
+        sfxClickPlayer->setSourceDevice(sfxClickBuffer, QUrl("qrc:/sounds/click.mp3"));
+    }
+
+    sfxCannonOutput = new QAudioOutput(this);
+    sfxCannonOutput->setVolume(0.8);
+    sfxCannonPlayer->setAudioOutput(sfxCannonOutput);
+    if (sfxCannonBuffer->isOpen())
+    {
+        sfxCannonPlayer->setSourceDevice(sfxCannonBuffer, QUrl("qrc:/sounds/connon.mp3"));
+    }
+
+    sfxFanOutput = new QAudioOutput(this);
+    sfxFanOutput->setVolume(0.8);
+    sfxFanPlayer->setAudioOutput(sfxFanOutput);
+    if (sfxFanBuffer->isOpen())
+    {
+        sfxFanPlayer->setSourceDevice(sfxFanBuffer, QUrl("qrc:/sounds/fan.mp3"));
+    }
+
+    sfxPoopOutput = new QAudioOutput(this);
+    sfxPoopOutput->setVolume(0.8);
+    sfxPoopPlayer->setAudioOutput(sfxPoopOutput);
+    if (sfxPoopBuffer->isOpen())
+    {
+        sfxPoopPlayer->setSourceDevice(sfxPoopBuffer, QUrl("qrc:/sounds/poop.mp3"));
     }
 #else
     sfxDeathPlayer->setVolume(80);
@@ -218,10 +352,28 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
         sfxDeathPlayer->setMedia(QMediaContent(), sfxDeathBuffer);
     }
 
-    sfxWinPlayer->setVolume(80);
-    if (sfxWinBuffer->isOpen())
+    sfxClickPlayer->setVolume(80);
+    if (sfxClickBuffer->isOpen())
     {
-        sfxWinPlayer->setMedia(QMediaContent(), sfxWinBuffer);
+        sfxClickPlayer->setMedia(QMediaContent(), sfxClickBuffer);
+    }
+
+    sfxCannonPlayer->setVolume(80);
+    if (sfxCannonBuffer->isOpen())
+    {
+        sfxCannonPlayer->setMedia(QMediaContent(), sfxCannonBuffer);
+    }
+
+    sfxFanPlayer->setVolume(80);
+    if (sfxFanBuffer->isOpen())
+    {
+        sfxFanPlayer->setMedia(QMediaContent(), sfxFanBuffer);
+    }
+
+    sfxPoopPlayer->setVolume(80);
+    if (sfxPoopBuffer->isOpen())
+    {
+        sfxPoopPlayer->setMedia(QMediaContent(), sfxPoopBuffer);
     }
 #endif
 
@@ -257,14 +409,56 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
             {
                 controller.tick(30);
 
-                // SFX triggers (decoupled: GameWorld only exposes one-shot flags)
+                // BGM switch by GameState
+                const GameState s = controller.world().state();
+                const bool inGame = (s == GameState::Countdown || s == GameState::Running || s == GameState::Paused);
+                const BgmMode desired = inGame ? BgmMode::Game : BgmMode::Menu;
+                if (desired != bgmMode_)
+                {
+                    bgmMode_ = desired;
+
+                    QBuffer* buf = (bgmMode_ == BgmMode::Game) ? bgmGameBuffer : bgmMenuBuffer;
+                    if (bgmPlayer && buf && buf->isOpen())
+                    {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                        const QUrl url = (bgmMode_ == BgmMode::Game) ? QUrl("qrc:/sounds/background_music.mp3")
+                                                                    : QUrl("qrc:/sounds/mainmanul.mp3");
+                        bgmPlayer->stop();
+                        bgmPlayer->setSourceDevice(buf, url);
+                        bgmPlayer->setPosition(0);
+                        bgmPlayer->play();
+#else
+                        bgmPlayer->stop();
+                        bgmPlayer->setMedia(QMediaContent(), buf);
+                        bgmPlayer->setPosition(0);
+                        bgmPlayer->play();
+#endif
+                    }
+                }
+
+                // AI辅助痕迹：此处参考了 AI 对“游戏逻辑层只产生事件、UI 层负责播放音效”的解耦建议，
+                // 我让 GameWorld 仅暴露一次性标志/事件队列（consumeXXX），MainWindow 统一消费并播放，避免逻辑层依赖 QMediaPlayer。
+                // SFX triggers (GameWorld only exposes one-shot flags)
                 if (controller.world().consumeEnemyDeathSfxRequested())
                 {
                     restartPlay(sfxDeathPlayer);
                 }
-                if (controller.world().consumeVictorySfxRequested())
+
+                // Tower fire SFX events
+                for (TowerType t : controller.world().consumeTowerFireSfxEvents())
                 {
-                    restartPlay(sfxWinPlayer);
+                    if (t == TowerType::Cannon)
+                    {
+                        restartPlay(sfxCannonPlayer);
+                    }
+                    else if (t == TowerType::Fan)
+                    {
+                        restartPlay(sfxFanPlayer);
+                    }
+                    else if (t == TowerType::Poop)
+                    {
+                        restartPlay(sfxPoopPlayer);
+                    }
                 }
 
                 update();
@@ -276,7 +470,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
 MainWindow::~MainWindow()
 {
     delete ui;
-    // std::vector 里的 unique_ptr 会在 MainWindow 析构时自动释放怪物内存
+    // 里的 unique_ptr 会在 MainWindow 析构时自动释放怪物内存
 }
 
 void MainWindow::mousePressEvent(QMouseEvent* event)
@@ -285,9 +479,42 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
     {
         return;
     }
-    restartPlay(sfxWinPlayer);
 
     const QPointF clickPos = event->position();
+
+    bool shouldPlayClick = false;
+
+    if (controller.world().state() == GameState::Start)
+    {
+        const QRectF startRect(450, 250, 200, 100);
+        const QRectF rulesRect(1000, 700, 200, 100);
+        if (startRect.contains(clickPos) || rulesRect.contains(clickPos))
+        {
+            shouldPlayClick = true;
+        }
+    }
+    else
+    {
+        if (towerUpgradeRect.contains(clickPos) || towerSellRect.contains(clickPos))
+        {
+            shouldPlayClick = true;
+        }
+        if (controller.speedRect().contains(clickPos) || controller.pauseRect().contains(clickPos))
+        {
+            shouldPlayClick = true;
+        }
+        if (controller.isBuildMenuOpen()
+            && (controller.buildBtn1().contains(clickPos) || controller.buildBtn2().contains(clickPos)
+                || controller.buildBtn3().contains(clickPos) || controller.buildBtn4().contains(clickPos)))
+        {
+            shouldPlayClick = true;
+        }
+    }
+
+    if (shouldPlayClick)
+    {
+        restartPlay(sfxClickPlayer);
+    }
 
     if (controller.world().state() == GameState::Start)
     {
@@ -296,7 +523,10 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
 
         if (rulesRect.contains(clickPos))
         {
-            QMessageBox::information(this, "规则说明", "这里是游戏的规则说明文本。 ");
+            QMessageBox::information(this, "规则说明", "1. 点击空地建塔\n"
+        "2. 击败怪物获得金币\n"
+        "3. 怪物到达终点萝卜扣血\n"
+        "4. 萝卜血量为0则失败\n");
             return;
         }
 
@@ -311,12 +541,30 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
     }
 
     const auto state = controller.world().state();
-    if (state == GameState::Victory || state == GameState::Defeat)
+    if (state == GameState::Victory)
     {
         if (confirmRect.contains(clickPos))
         {
             controller.reset();
             update();
+        }
+        return;
+    }
+
+    if (state == GameState::Defeat)
+    {
+        if (defeatRestartRect.contains(clickPos))
+        {
+            controller.reset();
+            controller.world().startCountdown();
+            update();
+            return;
+        }
+        if (defeatReturnRect.contains(clickPos))
+        {
+            controller.reset();
+            update();
+            return;
         }
         return;
     }
@@ -334,7 +582,7 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
         return;
     }
 
-    // AI辅助痕迹：输入统一转发给 controller，由 controller 决定状态机（GameState）与交互分支。
+    // 输入统一转发给 controller，由 controller 决定状态机（GameState）与交互分支。
     controller.onClick(clickPos);
     update();
 }
@@ -350,12 +598,14 @@ void MainWindow::paintEvent(QPaintEvent* event)
 
     controller.setHudLayout(width(), height());
 
-    // 对齐 /.WendyAr：开始界面显示 background.png，并提供透明点击区域
+    // 开始界面显示 background.png，并提供透明点击区域
     if (controller.world().state() == GameState::Start)
     {
         const QPixmap& bg = ResourceManager::instance().getPixmap("background");
         painter.drawPixmap(0, 0, width(), height(), bg);
         confirmRect = QRectF();
+        defeatRestartRect = QRectF();
+        defeatReturnRect = QRectF();
         towerUpgradeRect = QRectF();
         towerSellRect = QRectF();
         return;
@@ -370,7 +620,7 @@ void MainWindow::paintEvent(QPaintEvent* event)
 
     GameWorld& world = controller.world();
 
-    // 对齐 /.WendyAr：Money 文本
+    // Money 文本
     {
         QFont font;
         font.setFamily("Times New Roman");
@@ -381,7 +631,7 @@ void MainWindow::paintEvent(QPaintEvent* event)
         painter.drawText(130, 50, QString("Money: %1").arg(world.money()));
     }
 
-    // 对齐 /.WendyAr：波次文本（居中，暂停时显示“暂停中”）
+    // 波次文本（居中，暂停时显示“暂停中”）
     {
         QString waveText;
         if (world.state() == GameState::Paused)
@@ -402,7 +652,7 @@ void MainWindow::paintEvent(QPaintEvent* event)
         painter.drawText(QRect(0, 15, width(), 50), Qt::AlignHCenter | Qt::AlignVCenter, waveText);
     }
 
-    // 对齐 /.WendyAr：暂停/倍速按钮使用贴图
+    // 暂停/倍速按钮使用贴图
     {
         const bool paused = world.state() == GameState::Paused;
         const QString pauseSprite = paused ? "pause_hover" : "pause_normal";
@@ -413,7 +663,7 @@ void MainWindow::paintEvent(QPaintEvent* event)
         painter.drawPixmap(hudSpeedRect.toRect(), speedPix);
     }
 
-    // 对齐需求：默认不显示塔坑（绿色框/坑位贴图），仅在点击打开建造菜单时显示提示
+    // 默认不显示塔坑（绿色框/坑位贴图），仅在点击打开建造菜单时显示提示
     if (controller.isBuildMenuOpen())
     {
         const QPointF tl = controller.selectedPitTopLeft();
@@ -456,7 +706,7 @@ void MainWindow::paintEvent(QPaintEvent* event)
 
         if (tower->type() == TowerType::Cannon)
         {
-            // AI辅助痕迹：此处参考 /.WendyAr 的绘制方式（translate 到中心 -> rotate -> 绘制居中矩形），
+            // 此处参考了绘制方式（translate 到中心 -> rotate -> 绘制居中矩形），
             // 我将旋转角度从 Tower 的状态中读取，避免 MainWindow 直接参与“面向目标”的计算。
             painter.save();
             painter.translate(tower->position());
@@ -534,11 +784,24 @@ void MainWindow::paintEvent(QPaintEvent* event)
         const bool isBoss = (e->type() == EnemyType::MonsterBoss);
         const qreal sz = isBoss ? 120 : 80;
 
-        // 对齐 /.WendyAr：敌人 position 作为左上角坐标绘制
+        // 敌人 position 作为左上角坐标绘制
         // 同时使用 renderPosition() 注入移动时的轻微上下摆动动画
         const QPointF rp = e->renderPosition();
         const QRectF rect(rp.x(), rp.y(), sz, sz);
-        painter.drawPixmap(rect.toRect(), pix);
+        // AI辅助痕迹：此处参考了 AI 提供的“通过 QPainter::scale(-1,1) 实现水平镜像”的绘制方式，
+        // 我将“是否向左移动”的判定封装进 Enemy（isMovingLeft），UI 仅根据状态渲染，避免 UI 参与移动逻辑。
+        if (e->isMovingLeft())
+        {
+            painter.save();
+            painter.translate(rect.x() + rect.width(), rect.y());
+            painter.scale(-1.0, 1.0);
+            painter.drawPixmap(QRectF(0, 0, rect.width(), rect.height()).toRect(), pix);
+            painter.restore();
+        }
+        else
+        {
+            painter.drawPixmap(rect.toRect(), pix);
+        }
     }
 
     // radish
@@ -577,7 +840,7 @@ void MainWindow::paintEvent(QPaintEvent* event)
 
         if (selectedTower)
         {
-            const bool canUpgrade = world.money() >= selectedTower->upgradeCost();
+            const bool canUpgrade = (selectedTower->level() < 2) && (world.money() >= selectedTower->upgradeCost());
             const QString upSprite = canUpgrade ? "upgrade_normal_blue" : "upgrade_normal_gray";
             const QPixmap& upPix = ResourceManager::instance().getPixmap(upSprite);
             const QPixmap& rmPix = ResourceManager::instance().getPixmap("remove_normal");
@@ -611,17 +874,24 @@ void MainWindow::paintEvent(QPaintEvent* event)
     }
 
     // victory/defeat overlay
-    confirmRect = QRectF(400, 600, 200, 100);
+    confirmRect = QRectF(500, 520, 200, 80);
+    defeatRestartRect = QRectF();
+    defeatReturnRect = QRectF();
     if (world.state() == GameState::Victory)
     {
         painter.drawPixmap(0, 0, width(), height(), ResourceManager::instance().getPixmap("win"));
         painter.setBrush(QColor(255, 255, 255, 0));
+        painter.setPen(Qt::NoPen);
         painter.drawRect(confirmRect);
     }
     else if (world.state() == GameState::Defeat)
     {
         painter.drawPixmap(0, 0, width(), height(), ResourceManager::instance().getPixmap("lose"));
+
+        // 失败界面两个按钮区域（重新开始 / 返回）
+        defeatRestartRect = QRectF(420, 450, 300, 80);
+        defeatReturnRect = QRectF(420, 550, 300, 80);
+
         painter.setBrush(QColor(255, 255, 255, 0));
-        painter.drawRect(confirmRect);
     }
 }

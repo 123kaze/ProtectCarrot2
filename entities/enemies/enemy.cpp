@@ -61,6 +61,13 @@ Enemy::Enemy(int id, EnemyType type, const QList<QPointF>& path) : id_(id), type
 
 void Enemy::takeDamage(int damage)
 {
+    // AI辅助痕迹：此处参考了 AI 对“接口应防御非法输入”的建议，
+    // 我增加了 damage<=0 的保护，避免异常输入导致回血/状态错乱。
+    if (damage <= 0)
+    {
+        return;
+    }
+
     if (hp_ <= 0)
     {
         return;
@@ -122,6 +129,8 @@ void Enemy::update(std::int64_t deltaMs)
     }
 
     const bool moved = (qAbs(pos_.x() - oldPos.x()) + qAbs(pos_.y() - oldPos.y())) > 0.01;
+    movedLastTick_ = moved;
+    lastMoveDx_ = pos_.x() - oldPos.x();
     if (moved)
     {
         animAccMs_ += deltaMs;
@@ -131,7 +140,7 @@ void Enemy::update(std::int64_t deltaMs)
             switchSprite();
         }
 
-        // 轻微上下浮动：移动时更有“走路”感觉
+        // 移动时更有“走路”感觉
         animPhase_ += static_cast<double>(deltaMs) / 1000.0;
         bobbingOffsetY_ = qSin(animPhase_ * 12.0) * 3.0;
     }

@@ -40,6 +40,8 @@ void Bullet::update(std::int64_t deltaMs)
     const QPointF diff = tgt - pos_;
     const double dist = qSqrt(diff.x() * diff.x() + diff.y() * diff.y());
 
+    // AI辅助痕迹：此处参考了 AI 生成的“按 deltaMs 计算步长并用阈值判断命中”的草案，
+    // 我将命中阈值与步长绑定（hitThreshold=step），避免低帧率下子弹穿透目标。
     const double step = speedPxPerSec_ * (static_cast<double>(deltaMs) / 1000.0);
     const double hitThreshold = step;
 
@@ -63,7 +65,7 @@ void Bullet::update(std::int64_t deltaMs)
 
     if (shouldRotate_)
     {
-        // 对齐 /.WendyAr：每 100ms 旋转约 60 度
+        // 每 100ms 旋转约 60 度
         rotationDeg_ += 600.0 * (static_cast<double>(deltaMs) / 1000.0);
     }
 

@@ -37,7 +37,6 @@ INCLUDEPATH += \
 HEADERS += \
     core/gameobject.h \
     engine/ResourceManager.h \
-    engine/resourcemanager.h \
     entities/enemies/emermybase.h \
     entities/enemies/enemy.h \
     entities/bullets/bullet.h \

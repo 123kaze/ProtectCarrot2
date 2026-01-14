@@ -9,6 +9,13 @@ Obstacle::Obstacle(int id, const QPointF& pos, const QString& spriteName, int hp
 
 void Obstacle::takeDamage(int damage)
 {
+    // AI辅助痕迹：此处参考了 AI 对“核心接口防御非法输入”的建议，
+    // 我增加了 damage<=0 直接忽略的保护，避免异常输入导致血量反向变化。
+    if (damage <= 0)
+    {
+        return;
+    }
+
     hp_ -= damage;
     if (hp_ < 0)
     {

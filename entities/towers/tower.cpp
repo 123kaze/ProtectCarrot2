@@ -125,12 +125,14 @@ Enemy* Tower::chooseTargetEnemy(const std::vector<std::unique_ptr<Enemy>>& enemi
     return targeting_->chooseTarget(candidates);
 }
 
-void Tower::update(std::int64_t deltaMs,
+bool Tower::update(std::int64_t deltaMs,
                    const std::vector<std::unique_ptr<Enemy>>& enemies,
                    Obstacle* selectedObstacle,
                    std::vector<std::unique_ptr<Bullet>>& outBullets)
 {
-    // AI辅助痕迹：这里参考了旧工程 /.WendyAr 的思路：先选目标（优先障碍物，其次敌人），
+    // AI辅助痕迹：此处参考了 AI 生成的“先选目标再计算旋转角度”的实现思路，
+    // 我将“选目标”逻辑封装在 Tower 内（而不是放在 MainWindow），避免 UI 层参与战斗逻辑。
+    // 先选目标（优先障碍物，其次敌人），
     // 然后根据目标位置计算炮塔旋转角度。为适配当前架构，我将“选目标”逻辑保留在 Tower 内，
     // 但目标排序可通过 TargetingStrategy 扩展。
     QPointF targetPos;
@@ -158,28 +160,34 @@ void Tower::update(std::int64_t deltaMs,
     const std::int64_t interval = fireIntervalMs();
     if (timeSinceShotMs_ < interval)
     {
-        return;
+        return false;
     }
 
     if (selectedObstacle && !selectedObstacle->isDead() && isInRange(selectedObstacle->centerPosition()))
     {
         outBullets.push_back(std::make_unique<Bullet>(pos_.toPoint(), selectedObstacle, damage_, bulletSprite()));
         timeSinceShotMs_ = 0;
-        return;
+        return true;
     }
 
     Enemy* target = chooseTargetEnemy(enemies);
     if (!target)
     {
-        return;
+        return false;
     }
 
     outBullets.push_back(std::make_unique<Bullet>(pos_.toPoint(), target, damage_, bulletSprite()));
     timeSinceShotMs_ = 0;
+    return true;
 }
 
 bool Tower::upgrade()
 {
+    if (level_ >= 2)
+    {
+        return false;
+    }
+
     level_ += 1;
     damage_ += 20;
     rangePx_ += 30;

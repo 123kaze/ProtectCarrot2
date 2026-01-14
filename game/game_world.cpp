@@ -94,6 +94,13 @@ bool GameWorld::consumeVictorySfxRequested()
     return v;
 }
 
+std::vector<TowerType> GameWorld::consumeTowerFireSfxEvents()
+{
+    std::vector<TowerType> out;
+    out.swap(towerFireSfxEvents_);
+    return out;
+}
+
 void GameWorld::reset()
 {
     state_ = GameState::Start;
@@ -101,6 +108,7 @@ void GameWorld::reset()
 
     enemyDeathSfxRequested_ = false;
     victorySfxRequested_ = false;
+    towerFireSfxEvents_.clear();
 
     money_ = 450;
     moneyAccMs_ = 0;
@@ -134,7 +142,7 @@ Radish& GameWorld::radish()
 
 void GameWorld::initLevel()
 {
-    // 1200x800 map coordinates compatible with /.WendyAr
+    // 1200x800 map coordinates
     path_.clear();
     path_ << QPointF(400, 200) << QPointF(930, 200) << QPointF(930, 400) << QPointF(210, 400)
           << QPointF(210, 600) << QPointF(700, 600);
@@ -143,7 +151,7 @@ void GameWorld::initLevel()
 
     pits_ = TowerPit::createTowerPits();
 
-    // Place obstacles on specific pits (same indices as /.WendyAr)
+    // Place obstacles on specific pits (same indices as reference)
     const std::vector<int> targetIndices = {9, 15, 17, 19, 20, 22, 25, 33, 34, 38};
     const std::vector<QString> sprites = {"obstacle1", "obstacle2", "obstacle3", "obstacle4", "obstacle5",
                                           "obstacle6", "obstacle7", "obstacle8", "obstacle9", "obstacle10"};
@@ -367,6 +375,11 @@ bool GameWorld::upgradeSelectedTower()
     {
         if (t && t->id() == selected_.id)
         {
+            if (t->level() >= 2)
+            {
+                return false;
+            }
+
             const int cost = t->upgradeCost();
             if (!canAfford(cost))
             {
@@ -494,7 +507,11 @@ void GameWorld::updateTowersAndBullets(std::int64_t deltaMs)
     {
         if (t)
         {
-            t->update(deltaMs, enemies_, selectedObstacle, bullets_);
+            const bool fired = t->update(deltaMs, enemies_, selectedObstacle, bullets_);
+            if (fired)
+            {
+                towerFireSfxEvents_.push_back(t->type());
+            }
         }
     }
 
@@ -527,6 +544,18 @@ void GameWorld::resolveDeathsAndRewards()
 
         if (e->isDead())
         {
+            // AI辅助痕迹：此处参考了 AI 对“容器 erase 会导致外部裸指针悬垂”的提醒，
+            // 我选择在 GameWorld 内统一做目标清理（而不是让 Bullet 自己遍历 enemies_），从生命周期源头保证安全。
+            // 敌人即将被销毁，必须先让仍追踪它的子弹失效，避免悬垂指针。
+            for (auto& b : bullets_)
+            {
+                if (b && b->enemyTarget_ == e)
+                {
+                    b->expired_ = true;
+                    b->enemyTarget_ = nullptr;
+                }
+            }
+
             money_ += killReward(e->type());
             enemyDeathSfxRequested_ = true;
             it = enemies_.erase(it);
@@ -590,6 +619,25 @@ void GameWorld::checkRadishCollision()
         }
     }
 
+    // AI辅助痕迹：此处参考了 AI 的“删除前先断开引用关系”的建议，
+    // 我在敌人到达终点被批量 remove_if 前先统一失效相关子弹，避免随机崩溃。
+    // 到达终点的敌人会被移除，先让追踪它们的子弹失效。
+    for (const auto& e : enemies_)
+    {
+        if (!e || !e->isAtEnd())
+        {
+            continue;
+        }
+        for (auto& b : bullets_)
+        {
+            if (b && b->enemyTarget_ == e.get())
+            {
+                b->expired_ = true;
+                b->enemyTarget_ = nullptr;
+            }
+        }
+    }
+
     enemies_.erase(std::remove_if(enemies_.begin(), enemies_.end(),
                                  [](const std::unique_ptr<Enemy>& e) { return e && e->isAtEnd(); }),
                   enemies_.end());
@@ -604,7 +652,7 @@ void GameWorld::updateState()
     }
 
     // Victory if boss is killed and no more enemies alive after it spawned.
-    // Approximation: if elapsed time reached boss window and no boss exists and no enemies.
+    // if elapsed time reached boss window and no boss exists and no enemies.
     if (waveSpawner_ && waveSpawner_->currentWave() == 4)
     {
         const bool anyBoss = std::any_of(enemies_.begin(), enemies_.end(),

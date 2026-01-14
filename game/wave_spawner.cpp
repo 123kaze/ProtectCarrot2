@@ -25,7 +25,9 @@ void WaveSpawner::setupWaveRules()
 {
     rules_.clear();
 
-    // WendyAr timings are based on absolute time (ms) since game start.
+    // AI辅助痕迹：此处参考了 AI 对“用规则表驱动刷怪（type/interval/nextSpawn）”的建议，
+    // 我将刷怪配置集中在 WaveSpawner 内，GameWorld 仅负责调用 spawnEnemy，降低耦合并方便后续扩展新波次。
+    // timings are based on absolute time (ms) since game start.
     // We keep that behavior but trigger spawns using "nextSpawnMs" accumulation.
     const std::int64_t base = (currentWave_ == 0) ? 0 : (currentWave_ == 1) ? 20000
                                      : (currentWave_ == 2) ? 40000

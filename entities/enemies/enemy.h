@@ -28,6 +28,8 @@ public:
     QPointF centerPosition() const { return QPointF(pos_.x() + renderSize_ / 2.0, pos_.y() + renderSize_ / 2.0); }
     QString spriteName() const { return useAlt_ ? spriteAltName_ : spriteBaseName_; }
 
+    bool isMovingLeft() const { return movedLastTick_ && lastMoveDx_ < -0.01; }
+
     bool isAtEnd() const { return atEnd_; }
 
     double progress() const { return traveledDistancePx_; }
@@ -56,6 +58,9 @@ private:
     int renderSize_ = 80;
 
     std::int64_t animAccMs_ = 0;
+
+    bool movedLastTick_ = false;
+    double lastMoveDx_ = 0.0;
 
     double animPhase_ = 0.0;
     double bobbingOffsetY_ = 0.0;

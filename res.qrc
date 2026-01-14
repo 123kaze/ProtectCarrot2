@@ -83,5 +83,10 @@
         <file alias="death_moster.mp3">res/sounds/death_moster.mp3</file>
         <file alias="Win_music.mp3">res/sounds/Win_music.mp3</file>
         <file>res/sounds/background_music.mp3</file>
+        <file>res/sounds/mainmanul.mp3</file>
+        <file>res/sounds/click.mp3</file>
+        <file>res/sounds/connon.mp3</file>
+        <file>res/sounds/fan.mp3</file>
+        <file>res/sounds/poop.mp3</file>
     </qresource>
 </RCC>

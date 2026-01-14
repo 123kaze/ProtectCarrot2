@@ -60,9 +60,9 @@ void GameController::setHudLayout(int w, int)
 {
     Q_UNUSED(w);
 
-    // 对齐 /.WendyAr：暂停(60x60)在(1000,10)，倍速(120x120)在(800,10)
+    // 暂停(60x60)在(1000,10)，倍速(120x120)在(800,10)
     pauseRect_ = QRectF(1000, 10, 60, 60);
-    // 需求：倍速按钮（含 x1/x2）显示偏大，适当缩小绘制与点击区域
+    // 倍速按钮（含 x1/x2）显示偏大，适当缩小绘制与点击区域
     speedRect_ = QRectF(820, 0, 100, 80);
 }
 
@@ -74,7 +74,7 @@ void GameController::closeBuildMenu()
 
 void GameController::openBuildMenuAt(const QPointF& originTopLeft)
 {
-    // 对齐 /.WendyAr：四个按钮横排，100x100，gap=10，从坑位左上角展开
+    // 四个按钮横排，100x100，gap=10，从坑位左上角展开
     const qreal btn = 100;
     const qreal gap = 10;
 

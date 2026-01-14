@@ -3,7 +3,9 @@
 
 #include <QHash>
 #include <QPixmap>
+#include <QSet>
 #include <QString>
+#include <QStringList>
 #include <memory>
 
 class ResourceManager
@@ -14,6 +16,9 @@ class ResourceManager
     void loadResources(const QString& path);
 
     const QPixmap& getPixmap(const QString& name);
+
+    QStringList missingPixmaps() const;
+    void clearMissingPixmaps();
 
    private:
     ResourceManager();
@@ -27,6 +32,8 @@ class ResourceManager
 
     QHash<QString, std::shared_ptr<QPixmap>> pixmapCache;
     QPixmap defaultPixmap;
+
+    QSet<QString> missingPixmaps_;
 };
 
 #endif

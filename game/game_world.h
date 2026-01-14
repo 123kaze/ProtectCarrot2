@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "game_state.h"
+ #include "../entities/types.h"
 
 class Enemy;
 class Tower;
@@ -54,6 +55,7 @@ public:
 
     bool consumeEnemyDeathSfxRequested();
     bool consumeVictorySfxRequested();
+    std::vector<TowerType> consumeTowerFireSfxEvents();
 
     std::int64_t countdownMsLeft() const { return countdownMsLeft_; }
 
@@ -125,6 +127,8 @@ private:
 
     bool enemyDeathSfxRequested_ = false;
     bool victorySfxRequested_ = false;
+
+    std::vector<TowerType> towerFireSfxEvents_;
 };
 
 #endif

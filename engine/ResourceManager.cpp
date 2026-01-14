@@ -1,4 +1,4 @@
-#include "resourcemanager.h"
+#include "ResourceManager.h"
 
 #include <QDebug>
 #include <QDir>
@@ -13,7 +13,20 @@ ResourceManager& ResourceManager::instance()
 
 ResourceManager::ResourceManager()
 {
+    defaultPixmap = QPixmap(1, 1);
     defaultPixmap.fill(Qt::transparent);
+}
+
+QStringList ResourceManager::missingPixmaps() const
+{
+    QStringList out = missingPixmaps_.values();
+    out.sort();
+    return out;
+}
+
+void ResourceManager::clearMissingPixmaps()
+{
+    missingPixmaps_.clear();
 }
 
 QString ResourceManager::resolvePixmapPath(const QString& name) const
@@ -45,7 +58,10 @@ const QPixmap& ResourceManager::getPixmap(const QString& name)
 
         if (pix->isNull())
         {
+            // AI辅助痕迹：此处参考了 AI 对“资源加载失败要可恢复”的常见建议（返回占位图而不是崩溃/空指针）。
+            // 我在此基础上增加了 missingPixmaps_ 记录缺失资源名，便于启动时汇总提示用户。
             qDebug() << "Failed to load image:" << name << "path:" << resolvedPath;
+            missingPixmaps_.insert(name);
             return defaultPixmap;
         }
 

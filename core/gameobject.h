@@ -12,7 +12,7 @@ public:
     
     virtual ~GameObject() = default;
 
-    // 由子类重写：怪物走位、塔找目标等
+    // 怪物走位、塔找目标等
     virtual void update() = 0; 
 
     // 绘制自己
